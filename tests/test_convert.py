@@ -75,3 +75,21 @@ def test_format_aliases_contains_common_formats():
     assert "webp" in FORMAT_ALIASES
     assert "gif" in FORMAT_ALIASES
     assert "bmp" in FORMAT_ALIASES
+    assert "svg" in FORMAT_ALIASES
+
+
+def test_convert_file_to_svg(tmp_path, tmp_image_file):
+    from pathlib import Path
+    output = str(tmp_path / "out.svg")
+    convert_file(tmp_image_file, output, target_format="SVG")
+    content = Path(output).read_text(encoding="utf-8")
+    assert "<svg" in content
+    assert "data:image" in content
+
+
+def test_convert_file_to_svg_via_extension(tmp_path, tmp_image_file):
+    from pathlib import Path
+    output = str(tmp_path / "out.svg")
+    convert_file(tmp_image_file, output)   # infer from .svg extension
+    content = Path(output).read_text(encoding="utf-8")
+    assert "<svg" in content

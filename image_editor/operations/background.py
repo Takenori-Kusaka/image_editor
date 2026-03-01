@@ -1,5 +1,18 @@
-"""Background operations: removal, transparency, and replacement."""
+"""Background operations: removal, transparency, and replacement.
 
+Two removal methods are provided:
+
+* ``"flood"`` – Fast flood-fill from image corners.  Works well for images
+  with a uniform solid-colour background (any art style).
+* ``"grabcut"`` – OpenCV GrabCut graph-cut segmentation using an auto-detected
+  foreground hint.  Handles complex backgrounds and works across real photos,
+  3-D renders, and 2-D/anime illustrations.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import cv2
 from PIL import Image, ImageFilter
 
 
@@ -138,31 +151,118 @@ def _color_distance(c1: tuple, c2: tuple) -> float:
     return ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2) ** 0.5
 
 
+def remove_background_grabcut(
+    image: Image.Image,
+    iterations: int = 5,
+    border_fraction: float = 0.05,
+) -> Image.Image:
+    """Remove the background using OpenCV's GrabCut algorithm.
+
+    GrabCut performs graph-cut segmentation that separates a subject from its
+    background based on colour and texture cues.  Unlike the flood-fill method
+    it handles complex backgrounds and works on real photos, 3-D renders, and
+    2-D/anime illustrations.
+
+    The foreground rectangle is inferred automatically as the central 90 % of
+    the image.
+
+    Args:
+        image: Input PIL Image.
+        iterations: Number of GrabCut iterations.  More iterations improve
+                    quality at the cost of processing time.
+        border_fraction: Fraction of each edge treated as definite background
+                         when constructing the initial foreground rectangle.
+
+    Returns:
+        PIL Image in RGBA mode with the detected background made transparent.
+    """
+    rgb = image.convert("RGB")
+    arr = np.array(rgb, dtype=np.uint8)
+
+    h, w = arr.shape[:2]
+    bx = max(1, int(w * border_fraction))
+    by = max(1, int(h * border_fraction))
+    # (x, y, width, height) of the foreground hint rectangle
+    rect = (bx, by, w - 2 * bx, h - 2 * by)
+
+    mask = np.zeros((h, w), dtype=np.uint8)
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+
+    cv2.grabCut(arr, mask, rect, bgd_model, fgd_model, iterations, cv2.GC_INIT_WITH_RECT)
+
+    # Pixels marked as definite or probable foreground → keep
+    foreground_mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+
+    rgba = image.convert("RGBA")
+    alpha_arr = np.array(rgba)
+    alpha_arr[:, :, 3] = foreground_mask
+    return Image.fromarray(alpha_arr, "RGBA")
+
+
+def replace_background_grabcut(
+    image: Image.Image,
+    new_background: tuple = (255, 255, 255),
+    iterations: int = 5,
+) -> Image.Image:
+    """Replace background using GrabCut segmentation.
+
+    Args:
+        image: Input PIL Image.
+        new_background: Replacement background colour (RGB tuple).
+        iterations: GrabCut iterations.
+
+    Returns:
+        PIL Image (RGB mode) with the background replaced.
+    """
+    rgba = remove_background_grabcut(image, iterations=iterations)
+    bg = Image.new("RGB", image.size, new_background)
+    bg.paste(rgba, mask=rgba.split()[3])
+    return bg
+
+
 def background_file(
     input_path: str,
     output_path: str,
     action: str = "remove",
     threshold: int = 30,
     color: tuple = (255, 255, 255),
+    method: str = "flood",
+    grabcut_iterations: int = 5,
 ) -> str:
     """Process background of an image file.
 
     Args:
         input_path: Path to input image.
         output_path: Path to save output image.
-        action: One of 'remove' (make transparent) or 'replace' (replace with color).
-        threshold: Color distance threshold.
-        color: New background color for 'replace' action.
+        action: One of ``'remove'`` (make transparent) or ``'replace'``
+                (replace with *color*).
+        threshold: Colour-distance threshold for the ``"flood"`` method.
+        color: Replacement background colour for the ``'replace'`` action.
+        method: Segmentation method: ``"flood"`` (default, fast) or
+                ``"grabcut"`` (edge-aware, works on complex backgrounds).
+        grabcut_iterations: Number of GrabCut iterations (only used when
+                            *method* is ``"grabcut"``).
 
     Returns:
         Path to the output file.
     """
     with Image.open(input_path) as img:
-        if action == "remove":
-            result = make_transparent(img, threshold=threshold)
-        elif action == "replace":
-            result = replace_background(img, new_background=color, threshold=threshold)
+        if method == "grabcut":
+            if action == "remove":
+                result = remove_background_grabcut(img, iterations=grabcut_iterations)
+            elif action == "replace":
+                result = replace_background_grabcut(
+                    img, new_background=color, iterations=grabcut_iterations
+                )
+            else:
+                raise ValueError(f"Unknown action '{action}'. Use 'remove' or 'replace'.")
         else:
-            raise ValueError(f"Unknown action '{action}'. Use 'remove' or 'replace'.")
+            if action == "remove":
+                result = make_transparent(img, threshold=threshold)
+            elif action == "replace":
+                result = replace_background(img, new_background=color, threshold=threshold)
+            else:
+                raise ValueError(f"Unknown action '{action}'. Use 'remove' or 'replace'.")
         result.save(output_path)
     return output_path

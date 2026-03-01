@@ -17,12 +17,20 @@ from image_editor.operations.convert import (
     convert_file,
     normalize_format,
     FORMAT_ALIASES,
+    _image_to_svg,
 )
 from image_editor.operations.background import (
     remove_background_color,
     replace_background,
     make_transparent,
     background_file,
+    remove_background_grabcut,
+    replace_background_grabcut,
+)
+from image_editor.operations.face import (
+    detect_faces,
+    crop_face,
+    crop_face_file,
 )
 
 __all__ = [
@@ -38,8 +46,14 @@ __all__ = [
     "convert_file",
     "normalize_format",
     "FORMAT_ALIASES",
+    "_image_to_svg",
     "remove_background_color",
     "replace_background",
     "make_transparent",
     "background_file",
+    "remove_background_grabcut",
+    "replace_background_grabcut",
+    "detect_faces",
+    "crop_face",
+    "crop_face_file",
 ]

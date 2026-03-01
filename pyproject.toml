@@ -12,6 +12,8 @@ license = { text = "MIT" }
 dependencies = [
     "Pillow>=10.0.0",
     "click>=8.0.0",
+    "opencv-python-headless>=4.8.0",
+    "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -27,3 +29,9 @@ image-editor-gui = "image_editor.gui:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["image_editor*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

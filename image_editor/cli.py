@@ -1,7 +1,10 @@
 """CLI entry point for image_editor."""
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
+from typing import Optional
 
 import click
 
@@ -11,9 +14,11 @@ from image_editor.operations import (
     resize_file,
     convert_file,
     background_file,
+    crop_face_file,
     PRESET_SIZES,
     FORMAT_ALIASES,
 )
+from image_editor.settings import Settings
 from image_editor.utils.batch import batch_process, find_images
 from image_editor.utils.backup import create_backup
 
@@ -32,24 +37,57 @@ def _parse_color(color_str: str) -> tuple:
     return tuple(parts)
 
 
+# ---------------------------------------------------------------------------
+# Global context object passed from the top-level group to sub-commands
+# ---------------------------------------------------------------------------
+
+class _Context:
+    def __init__(self, settings: Settings):
+        self.settings = settings
+
+
+pass_ctx = click.make_pass_decorator(_Context, ensure=True)
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="image-editor")
-def cli():
+@click.option(
+    "--settings-file",
+    "settings_file",
+    default=None,
+    envvar="IMAGE_EDITOR_SETTINGS",
+    help=(
+        "Path to a JSON settings file that provides default values for all "
+        "options.  CLI flags always override settings file values.  "
+        "Env var: IMAGE_EDITOR_SETTINGS."
+    ),
+    type=click.Path(exists=False),
+)
+@click.pass_context
+def cli(ctx: click.Context, settings_file: Optional[str]):
     """image-editor: A versatile image and photo editing tool.
 
-    Supports cropping, resizing, background removal, format conversion,
-    backup, and batch processing.
+    Supports cropping, resizing, face detection, background removal,
+    format conversion (including WebP and SVG), backup, and batch processing.
+
+    Options can be provided directly on the command line **or** via a JSON
+    settings file (use ``--settings-file path/to/settings.json``).
 
     Examples:
 
     \b
+      image-editor --settings-file settings.json resize photo.jpg -o out.jpg
       image-editor crop photo.jpg -o out.jpg --left 10 --top 10 --right 400 --bottom 400
       image-editor resize photo.jpg -o out.jpg --width 800 --height 600
       image-editor resize photo.jpg -o out.jpg --preset passport
-      image-editor convert photo.png -o out.jpg
-      image-editor background photo.jpg -o out.png --action remove
+      image-editor convert photo.png -o out.svg
+      image-editor background photo.jpg -o out.png --action remove --method grabcut
+      image-editor face photo.jpg -o face.png --style real --padding 0.2
       image-editor batch resize ./photos/ -o ./resized/ --width 800 --height 600
     """
+    settings = Settings.load(settings_file)
+    ctx.obj = _Context(settings)
+    ctx.ensure_object(_Context)
 
 
 # ---------------------------------------------------------------------------
@@ -65,13 +103,15 @@ def cli():
 @click.option("--bottom", type=int, required=True, help="Bottom coordinate.")
 @click.option("--backup", is_flag=True, help="Backup original file before processing.")
 @click.option("--backup-dir", default=None, help="Directory to store backups.")
-def crop(input, output, left, top, right, bottom, backup, backup_dir):
+@pass_ctx
+def crop(ctx, input, output, left, top, right, bottom, backup, backup_dir):
     """Crop an image to specified coordinates.
 
     INPUT is the path to the input image.
     """
-    if backup:
-        bp = create_backup(input, backup_dir)
+    s = ctx.settings
+    if backup or s.get("backup_enabled"):
+        bp = create_backup(input, backup_dir or s.get("backup_dir"))
         click.echo(f"Backup created: {bp}")
     crop_file(input, output, left, top, right, bottom)
     click.echo(f"Cropped image saved to: {output}")
@@ -99,7 +139,8 @@ def crop(input, output, left, top, right, bottom, backup, backup_dir):
 )
 @click.option("--backup", is_flag=True, help="Backup original file before processing.")
 @click.option("--backup-dir", default=None, help="Directory to store backups.")
-def resize(input, output, width, height, preset, keep_aspect, backup, backup_dir):
+@pass_ctx
+def resize(ctx, input, output, width, height, preset, keep_aspect, backup, backup_dir):
     """Resize an image to specified dimensions or a preset size.
 
     INPUT is the path to the input image.
@@ -107,11 +148,15 @@ def resize(input, output, width, height, preset, keep_aspect, backup, backup_dir
     Available presets: passport, id_photo, business_card, a4, a5,
     instagram_square, instagram_portrait, twitter_header, facebook_cover,
     fullhd, 4k.
+
+    The LANCZOS filter is used by default, which preserves image quality
+    when downscaling.
     """
+    s = ctx.settings
     if not preset and width <= 0 and height <= 0:
         raise click.UsageError("Specify --width, --height, or --preset.")
-    if backup:
-        bp = create_backup(input, backup_dir)
+    if backup or s.get("backup_enabled"):
+        bp = create_backup(input, backup_dir or s.get("backup_dir"))
         click.echo(f"Backup created: {bp}")
     resize_file(input, output, width, height, keep_aspect=keep_aspect, preset=preset)
     click.echo(f"Resized image saved to: {output}")
@@ -127,9 +172,9 @@ def resize(input, output, width, height, preset, keep_aspect, backup, backup_dir
 @click.option(
     "--format",
     "target_format",
-    type=click.Choice(list(FORMAT_ALIASES.keys()) + ["PNG", "JPEG", "WEBP", "GIF", "BMP", "TIFF"]),
+    type=click.Choice(list(FORMAT_ALIASES.keys()) + ["PNG", "JPEG", "WEBP", "GIF", "BMP", "TIFF", "SVG"]),
     default=None,
-    help="Target format (inferred from output extension if not specified).",
+    help="Target format (inferred from output extension if not specified). Use 'svg' for web SVG.",
 )
 @click.option(
     "--quality",
@@ -146,16 +191,22 @@ def resize(input, output, width, height, preset, keep_aspect, backup, backup_dir
 )
 @click.option("--backup", is_flag=True, help="Backup original file before processing.")
 @click.option("--backup-dir", default=None, help="Directory to store backups.")
-def convert(input, output, target_format, quality, bg_color, backup, backup_dir):
+@pass_ctx
+def convert(ctx, input, output, target_format, quality, bg_color, backup, backup_dir):
     """Convert an image to a different format.
 
     INPUT is the path to the input image.
+
+    Supports JPEG, PNG, WebP, GIF, BMP, TIFF, ICO, and SVG.
+    SVG output embeds the raster image inside an SVG wrapper for web use.
     """
+    s = ctx.settings
     bg = _parse_color(bg_color)
-    if backup:
-        bp = create_backup(input, backup_dir)
+    effective_quality = quality if quality != 95 else s.get("jpeg_quality", 95)
+    if backup or s.get("backup_enabled"):
+        bp = create_backup(input, backup_dir or s.get("backup_dir"))
         click.echo(f"Backup created: {bp}")
-    convert_file(input, output, target_format=target_format, quality=quality, background_color=bg)
+    convert_file(input, output, target_format=target_format, quality=effective_quality, background_color=bg)
     click.echo(f"Converted image saved to: {output}")
 
 
@@ -178,7 +229,7 @@ def convert(input, output, target_format, quality, bg_color, backup, backup_dir)
     type=click.IntRange(0, 255),
     default=30,
     show_default=True,
-    help="Color distance threshold for background detection (0-255).",
+    help="Color distance threshold for background detection (0-255). Used with --method flood.",
 )
 @click.option(
     "--color",
@@ -186,22 +237,124 @@ def convert(input, output, target_format, quality, bg_color, backup, backup_dir)
     show_default=True,
     help="Replacement background color (used with --action replace).",
 )
+@click.option(
+    "--method",
+    type=click.Choice(["flood", "grabcut"]),
+    default="flood",
+    show_default=True,
+    help=(
+        "Segmentation method. 'flood' is fast and works on solid-colour backgrounds. "
+        "'grabcut' uses edge-aware segmentation and works on complex backgrounds "
+        "(real photos, 3-D renders, 2-D/anime). "
+        "Can also be set in a settings file via 'bg_method'."
+    ),
+)
+@click.option(
+    "--grabcut-iterations",
+    type=int,
+    default=5,
+    show_default=True,
+    help="Number of GrabCut iterations (only used with --method grabcut).",
+)
 @click.option("--backup", is_flag=True, help="Backup original file before processing.")
 @click.option("--backup-dir", default=None, help="Directory to store backups.")
-def background(input, output, action, threshold, color, backup, backup_dir):
+@pass_ctx
+def background(ctx, input, output, action, threshold, color, method, grabcut_iterations, backup, backup_dir):
     """Process the background of an image.
 
     INPUT is the path to the input image.
 
     Use --action remove to make the background transparent (saves as PNG/WEBP).
     Use --action replace to replace the background with a solid color.
+
+    Supports real photos, 3-D renders, and 2-D/anime illustrations via
+    --method grabcut.
     """
+    s = ctx.settings
+    effective_method = method if method != "flood" else s.get("bg_method", "flood")
+    effective_threshold = threshold if threshold != 30 else s.get("bg_threshold", 30)
     bg_color = _parse_color(color)
-    if backup:
-        bp = create_backup(input, backup_dir)
+    if backup or s.get("backup_enabled"):
+        bp = create_backup(input, backup_dir or s.get("backup_dir"))
         click.echo(f"Backup created: {bp}")
-    background_file(input, output, action=action, threshold=threshold, color=bg_color)
+    background_file(
+        input, output,
+        action=action,
+        threshold=effective_threshold,
+        color=bg_color,
+        method=effective_method,
+        grabcut_iterations=grabcut_iterations,
+    )
     click.echo(f"Processed image saved to: {output}")
+
+
+# ---------------------------------------------------------------------------
+# face
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.argument("input", type=click.Path(exists=True))
+@click.option("-o", "--output", required=True, help="Output file path.")
+@click.option(
+    "--style",
+    type=click.Choice(["real", "real_alt", "anime", "profile"]),
+    default="real",
+    show_default=True,
+    help=(
+        "Face detection style.  'real' = photographs / 3-D renders (default). "
+        "'anime' = 2-D / cartoon / illustration faces. "
+        "'profile' = side-facing real faces."
+    ),
+)
+@click.option(
+    "--padding",
+    type=float,
+    default=0.2,
+    show_default=True,
+    help="Fractional padding around the detected face (0.2 = 20 %% of face size).",
+)
+@click.option(
+    "--min-size",
+    type=int,
+    default=30,
+    show_default=True,
+    help="Minimum face size in pixels.",
+)
+@click.option(
+    "--face-index",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Index of the face to crop (0 = largest detected face).",
+)
+@click.option("--backup", is_flag=True, help="Backup original file before processing.")
+@click.option("--backup-dir", default=None, help="Directory to store backups.")
+@pass_ctx
+def face(ctx, input, output, style, padding, min_size, face_index, backup, backup_dir):
+    """Detect and crop a face from an image.
+
+    INPUT is the path to the input image.
+
+    Uses OpenCV Haar Cascade classifiers – no separate model download required.
+    Supports real photographs, 3-D renders, and 2-D/anime illustrations.
+    """
+    s = ctx.settings
+    effective_padding = padding if padding != 0.2 else s.get("face_padding", 0.2)
+    effective_min_size = min_size if min_size != 30 else s.get("face_min_size", 30)
+    if backup or s.get("backup_enabled"):
+        bp = create_backup(input, backup_dir or s.get("backup_dir"))
+        click.echo(f"Backup created: {bp}")
+    try:
+        crop_face_file(
+            input, output,
+            padding=effective_padding,
+            style=style,
+            min_size=effective_min_size,
+            face_index=face_index,
+        )
+        click.echo(f"Face crop saved to: {output}")
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
 
 
 # ---------------------------------------------------------------------------

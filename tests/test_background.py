@@ -89,3 +89,46 @@ def test_background_file_invalid_action(tmp_path, tmp_image_file):
     output = str(tmp_path / "out.png")
     with pytest.raises(ValueError, match="Unknown action"):
         background_file(tmp_image_file, output, action="invalid")
+
+
+# ---------------------------------------------------------------------------
+# GrabCut method
+# ---------------------------------------------------------------------------
+
+
+def test_grabcut_remove_returns_rgba(sample_rgb_image):
+    from image_editor.operations.background import remove_background_grabcut
+    result = remove_background_grabcut(sample_rgb_image, iterations=2)
+    assert result.mode == "RGBA"
+    assert result.size == sample_rgb_image.size
+
+
+def test_grabcut_replace_returns_rgb(sample_rgb_image):
+    from image_editor.operations.background import replace_background_grabcut
+    result = replace_background_grabcut(sample_rgb_image, new_background=(0, 0, 255), iterations=2)
+    assert result.mode == "RGB"
+    assert result.size == sample_rgb_image.size
+
+
+def test_background_file_grabcut_remove(tmp_path, tmp_image_file):
+    output = str(tmp_path / "grabcut_out.png")
+    background_file(tmp_image_file, output, action="remove", method="grabcut", grabcut_iterations=2)
+    with Image.open(output) as img:
+        assert img.mode == "RGBA"
+
+
+def test_background_file_grabcut_replace(tmp_path, tmp_image_file):
+    output = str(tmp_path / "grabcut_replace.png")
+    background_file(
+        tmp_image_file, output,
+        action="replace", method="grabcut", color=(0, 0, 200), grabcut_iterations=2,
+    )
+    with Image.open(output) as img:
+        assert img.mode == "RGB"
+
+
+def test_background_file_grabcut_invalid_action(tmp_path, tmp_image_file):
+    output = str(tmp_path / "out.png")
+    with pytest.raises(ValueError, match="Unknown action"):
+        background_file(tmp_image_file, output, action="invalid", method="grabcut")
+

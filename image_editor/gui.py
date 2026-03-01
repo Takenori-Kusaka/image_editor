@@ -1,5 +1,7 @@
 """GUI entry point for image_editor using tkinter."""
 
+from __future__ import annotations
+
 import os
 import threading
 from pathlib import Path
@@ -16,32 +18,59 @@ from image_editor.operations import (
     resize_file,
     convert_file,
     background_file,
+    crop_face_file,
     PRESET_SIZES,
     FORMAT_ALIASES,
 )
+from image_editor.settings import Settings
 from image_editor.utils.backup import create_backup
 from image_editor.utils.batch import batch_process, find_images
 
 
 PREVIEW_MAX_SIZE = (400, 400)
+_DEFAULT_SETTINGS_PATH = Path.home() / ".config" / "image_editor" / "settings.json"
 
 
 class ImageEditorGUI:
     """Main GUI application for image_editor."""
 
-    def __init__(self, root: Tk):
+    def __init__(self, root: Tk, settings_path: str = None):
         self.root = root
         self.root.title("Image Editor")
         self.root.resizable(True, True)
 
-        self.input_path = StringVar()
-        self.output_path = StringVar()
-        self.backup_enabled = BooleanVar(value=False)
-        self.backup_dir = StringVar()
+        # Load persisted settings
+        self._settings = Settings.load(settings_path or _DEFAULT_SETTINGS_PATH)
+
+        self.input_path = StringVar(value=self._settings.get("last_input_path") or "")
+        self.output_path = StringVar(value=self._settings.get("last_output_path") or "")
+        self.backup_enabled = BooleanVar(value=bool(self._settings.get("backup_enabled", False)))
+        self.backup_dir = StringVar(value=self._settings.get("backup_dir") or "")
 
         self._preview_image = None  # Keep reference to avoid GC
 
         self._build_ui()
+
+        # Save settings on window close
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _on_close(self):
+        """Persist settings and close the window."""
+        self._settings.update({
+            "last_input_path": self.input_path.get() or None,
+            "last_output_path": self.output_path.get() or None,
+            "backup_enabled": self.backup_enabled.get(),
+            "backup_dir": self.backup_dir.get() or None,
+            "jpeg_quality": self._convert_quality.get(),
+            "bg_threshold": self._bg_threshold.get(),
+            "bg_method": self._bg_method.get(),
+            "face_padding": self._face_padding.get(),
+        })
+        try:
+            self._settings.save()
+        except Exception:
+            pass
+        self.root.destroy()
 
     # ------------------------------------------------------------------
     # UI Construction
@@ -75,6 +104,7 @@ class ImageEditorGUI:
         self._build_resize_tab()
         self._build_convert_tab()
         self._build_background_tab()
+        self._build_face_tab()
         self._build_batch_tab()
         self._build_preview_tab()
 
@@ -140,10 +170,12 @@ class ImageEditorGUI:
         self.notebook.add(frame, text="Convert")
 
         self._convert_format = StringVar(value="png")
-        self._convert_quality = IntVar(value=95)
+        self._convert_quality = IntVar(value=self._settings.get("jpeg_quality", 95))
 
         Label(frame, text="Target format:").grid(row=0, column=0, sticky=W)
-        fmt_choices = sorted(set(k.upper() for k in FORMAT_ALIASES) | {"PNG", "JPEG", "WEBP", "GIF", "BMP", "TIFF"})
+        fmt_choices = sorted(
+            set(k.upper() for k in FORMAT_ALIASES) | {"PNG", "JPEG", "WEBP", "GIF", "BMP", "TIFF", "SVG"}
+        )
         OptionMenu(frame, self._convert_format, *fmt_choices).grid(row=0, column=1, sticky=W, padx=4)
 
         Label(frame, text="Quality (JPEG/WebP):").grid(row=1, column=0, sticky=W, pady=4)
@@ -160,22 +192,67 @@ class ImageEditorGUI:
         self.notebook.add(frame, text="Background")
 
         self._bg_action = StringVar(value="remove")
-        self._bg_threshold = IntVar(value=30)
+        self._bg_method = StringVar(value=self._settings.get("bg_method", "flood"))
+        self._bg_threshold = IntVar(value=self._settings.get("bg_threshold", 30))
         self._bg_color = StringVar(value="255,255,255")
 
         Label(frame, text="Action:").grid(row=0, column=0, sticky=W)
         OptionMenu(frame, self._bg_action, "remove", "replace").grid(row=0, column=1, sticky=W, padx=4)
 
-        Label(frame, text="Threshold (0-255):").grid(row=1, column=0, sticky=W, pady=4)
+        Label(frame, text="Method:").grid(row=1, column=0, sticky=W, pady=2)
+        OptionMenu(frame, self._bg_method, "flood", "grabcut").grid(row=1, column=1, sticky=W, padx=4)
+        Label(
+            frame,
+            text="flood = solid bg, grabcut = complex bg / all styles",
+            fg="gray",
+        ).grid(row=2, column=0, columnspan=2, sticky=W)
+
+        Label(frame, text="Threshold (0-255):").grid(row=3, column=0, sticky=W, pady=4)
         Scale(
             frame, variable=self._bg_threshold, from_=0, to=255, orient=HORIZONTAL, length=200
-        ).grid(row=1, column=1, sticky=W, padx=4)
+        ).grid(row=3, column=1, sticky=W, padx=4)
 
-        Label(frame, text="Replace color (R,G,B):").grid(row=2, column=0, sticky=W)
-        Entry(frame, textvariable=self._bg_color, width=15).grid(row=2, column=1, sticky=W, padx=4)
+        Label(frame, text="Replace color (R,G,B):").grid(row=4, column=0, sticky=W)
+        Entry(frame, textvariable=self._bg_color, width=15).grid(row=4, column=1, sticky=W, padx=4)
 
         Button(frame, text="Process Background", command=self._do_background).grid(
-            row=3, column=0, columnspan=2, pady=8
+            row=5, column=0, columnspan=2, pady=8
+        )
+
+    # --- Face Tab ---
+
+    def _build_face_tab(self):
+        frame = Frame(self.notebook, padx=8, pady=8)
+        self.notebook.add(frame, text="Face")
+
+        self._face_style = StringVar(value="real")
+        self._face_padding = IntVar(value=int(self._settings.get("face_padding", 0.2) * 100))
+        self._face_min_size = IntVar(value=self._settings.get("face_min_size", 30))
+        self._face_index = IntVar(value=0)
+
+        Label(frame, text="Style:").grid(row=0, column=0, sticky=W)
+        OptionMenu(frame, self._face_style, "real", "real_alt", "anime", "profile").grid(
+            row=0, column=1, sticky=W, padx=4
+        )
+        Label(
+            frame,
+            text="real/real_alt = photos, 3-D | anime = 2-D | profile = side face",
+            fg="gray",
+        ).grid(row=1, column=0, columnspan=2, sticky=W)
+
+        Label(frame, text="Padding % (0-100):").grid(row=2, column=0, sticky=W, pady=4)
+        Scale(
+            frame, variable=self._face_padding, from_=0, to=100, orient=HORIZONTAL, length=200
+        ).grid(row=2, column=1, sticky=W, padx=4)
+
+        Label(frame, text="Min face size (px):").grid(row=3, column=0, sticky=W)
+        Entry(frame, textvariable=self._face_min_size, width=8).grid(row=3, column=1, sticky=W, padx=4)
+
+        Label(frame, text="Face index (0=largest):").grid(row=4, column=0, sticky=W, pady=2)
+        Entry(frame, textvariable=self._face_index, width=8).grid(row=4, column=1, sticky=W, padx=4)
+
+        Button(frame, text="Detect & Crop Face", command=self._do_face).grid(
+            row=5, column=0, columnspan=2, pady=8
         )
 
     # --- Batch Tab ---
@@ -377,9 +454,31 @@ class ImageEditorGUI:
                 action=self._bg_action.get(),
                 threshold=self._bg_threshold.get(),
                 color=color,
+                method=self._bg_method.get(),
             )
             self.status_var.set(f"Background processed: {self.output_path.get()}")
             messagebox.showinfo("Done", f"Processed image saved to:\n{self.output_path.get()}")
+        except Exception as exc:
+            messagebox.showerror("Error", str(exc))
+
+    def _do_face(self):
+        if not self._validate_paths():
+            return
+        try:
+            self._do_backup()
+            padding = self._face_padding.get() / 100.0
+            crop_face_file(
+                self.input_path.get(),
+                self.output_path.get(),
+                padding=padding,
+                style=self._face_style.get(),
+                min_size=self._face_min_size.get(),
+                face_index=self._face_index.get(),
+            )
+            self.status_var.set(f"Face crop saved: {self.output_path.get()}")
+            messagebox.showinfo("Done", f"Face crop saved to:\n{self.output_path.get()}")
+        except ValueError as exc:
+            messagebox.showwarning("No face detected", str(exc))
         except Exception as exc:
             messagebox.showerror("Error", str(exc))
 
@@ -495,9 +594,19 @@ class ImageEditorGUI:
 
 
 def main():
-    """GUI entry point."""
+    """GUI entry point.
+
+    Accepts an optional ``--settings-file`` argument for loading settings
+    from an explicit JSON file instead of the default user config path.
+    """
+    import argparse
+    parser = argparse.ArgumentParser(prog="image-editor-gui", add_help=False)
+    parser.add_argument("--settings-file", default=None, metavar="PATH",
+                        help="Path to a JSON settings file.")
+    args, _ = parser.parse_known_args()
+
     root = Tk()
-    app = ImageEditorGUI(root)
+    app = ImageEditorGUI(root, settings_path=args.settings_file)
     root.mainloop()
 
 
