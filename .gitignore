@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
 *.so
 *.egg
 *.egg-info/
@@ -9,7 +10,9 @@ build/
 .eggs/
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
+*.whl
 
 # Virtual environments
 .venv/
@@ -20,3 +23,21 @@ env/
 .idea/
 .vscode/
 *.swp
+*.swo
+*~
+
+# PyInstaller
+*.spec
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Settings (user-specific)
+settings.json
+
+# Temporary files
+*.tmp
+*.bak
+*.log

@@ -8,6 +8,9 @@ from PIL import Image
 PRESET_SIZES = {
     "id_photo": (600, 800),          # 3x4cm @ 200dpi
     "passport": (413, 531),           # 35x45mm @ 300dpi
+    "mynumber": (413, 531),           # 35x45mm @ 300dpi (マイナンバーカード)
+    "resume": (354, 472),             # 30x40mm @ 300dpi (履歴書)
+    "drivers_license": (283, 354),    # 24x30mm @ 300dpi (運転免許証)
     "business_card": (1063, 591),     # 91x55mm @ 300dpi
     "a4": (2480, 3508),               # A4 @ 300dpi
     "a5": (1748, 2480),               # A5 @ 300dpi

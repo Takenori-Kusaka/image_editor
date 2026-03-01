@@ -215,6 +215,45 @@ def test_e2e_background_grabcut(runner, tmp_path, png100):
         assert img.mode == "RGBA"
 
 
+def test_e2e_background_rembg_remove(runner, tmp_path):
+    """E2E test: rembg remove via CLI."""
+    # Create a person-like image with a coloured background
+    import numpy as np
+    arr = np.full((100, 100, 3), fill_value=[60, 120, 200], dtype=np.uint8)
+    arr[20:80, 30:70] = [200, 160, 130]  # foreground
+    img = Image.fromarray(arr)
+    input_path = str(tmp_path / "person.png")
+    img.save(input_path)
+
+    output = str(tmp_path / "rembg_out.png")
+    result = runner.invoke(cli, [
+        "background", input_path, "-o", output,
+        "--action", "remove", "--method", "rembg",
+    ])
+    assert result.exit_code == 0, result.output
+    with Image.open(output) as out:
+        assert out.mode == "RGBA"
+
+
+def test_e2e_background_rembg_replace(runner, tmp_path):
+    """E2E test: rembg replace via CLI."""
+    import numpy as np
+    arr = np.full((100, 100, 3), fill_value=[60, 120, 200], dtype=np.uint8)
+    arr[20:80, 30:70] = [200, 160, 130]
+    img = Image.fromarray(arr)
+    input_path = str(tmp_path / "person.png")
+    img.save(input_path)
+
+    output = str(tmp_path / "rembg_replace.png")
+    result = runner.invoke(cli, [
+        "background", input_path, "-o", output,
+        "--action", "replace", "--method", "rembg", "--color", "255,255,255",
+    ])
+    assert result.exit_code == 0, result.output
+    with Image.open(output) as out:
+        assert out.mode == "RGB"
+
+
 # ---------------------------------------------------------------------------
 # Face E2E
 # ---------------------------------------------------------------------------

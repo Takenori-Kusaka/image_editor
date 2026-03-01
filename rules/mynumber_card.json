@@ -1,0 +1,74 @@
+{
+  "_meta": {
+    "name": "マイナンバーカード用写真",
+    "name_en": "My Number Card Photo (Japan)",
+    "description": "個人番号カード（マイナンバーカード）申請用の顔写真規格",
+    "source": "地方公共団体情報システム機構 (J-LIS)",
+    "source_url": "https://www.kojinbango-card.go.jp/apprec/apply/facephoto/",
+    "last_verified": "2026-03-01",
+    "validity_period": "撮影から6ヶ月以内"
+  },
+
+  "print_spec": {
+    "width_mm": 35,
+    "height_mm": 45,
+    "dpi": 300,
+    "notes": "カードには縦27.5mm × 横22.0mmに縮小して貼付される"
+  },
+
+  "digital_spec": {
+    "file_format": ["JPEG"],
+    "file_extension": [".jpg", ".jpeg"],
+    "min_file_size_kb": 20,
+    "max_file_size_kb": 7168,
+    "min_width_px": 480,
+    "min_height_px": 640,
+    "aspect_ratio": "3:4",
+    "color_mode": "RGB",
+    "notes": "オンライン申請時のアップロード規格"
+  },
+
+  "image_editor_settings": {
+    "resize_width": 480,
+    "resize_height": 640,
+    "resize_keep_aspect": true,
+    "jpeg_quality": 95,
+    "face_style": "real",
+    "face_padding": 0.35,
+    "face_min_size": 30,
+    "bg_method": "grabcut",
+    "bg_action": "replace",
+    "bg_color": [255, 255, 255],
+    "output_format": "JPEG"
+  },
+
+  "face_positioning": {
+    "face_length_mm": { "target": 34, "tolerance": 2, "notes": "頭頂〜あご" },
+    "face_center_from_edge_mm": { "target": 17, "tolerance": 2, "notes": "写真の左右端から顔の中心まで" },
+    "top_margin_mm": { "target": 4, "tolerance": 2, "notes": "頭頂から写真上端まで" }
+  },
+
+  "composition_rules": {
+    "orientation": "正面向き",
+    "expression": "自然な表情（口を閉じる）",
+    "hat": false,
+    "glasses": "眼鏡可（ただしフレームが目にかからず、反射なきこと）",
+    "background": "無地（白・薄いブルー・薄いグレー推奨）",
+    "background_shadow": false,
+    "color_or_bw": "カラー推奨（白黒も可）",
+    "framing": "上半身（肩から上）",
+    "hair": "前髪が目元を隠さないこと、顔の輪郭が見えること"
+  },
+
+  "ng_examples": [
+    "顔が片寄っている",
+    "横向き・傾いている",
+    "背景に影・模様がある",
+    "眼鏡のフレームが目にかかっている",
+    "サングラス・帽子着用",
+    "ピンボケ・手ブレ",
+    "赤目（フラッシュ反射）",
+    "顔に影がある",
+    "平常の顔貌と著しく異なる"
+  ]
+}

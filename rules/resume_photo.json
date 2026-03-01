@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "name": "履歴書用写真",
+    "name_en": "Resume Photo (Japan)",
+    "description": "日本の履歴書（JIS規格準拠）に貼付する証明写真の規格",
+    "source": "JIS Z 8303 準拠（一般的な採用業界標準）",
+    "source_url": null,
+    "last_verified": "2026-03-01",
+    "validity_period": "撮影から3ヶ月以内"
+  },
+
+  "print_spec": {
+    "width_mm": 30,
+    "height_mm": 40,
+    "dpi": 300,
+    "alternative_sizes": [
+      { "width_mm": 24, "height_mm": 36, "notes": "小型サイズ（一部企業指定）" },
+      { "width_mm": 35, "height_mm": 45, "notes": "パスポートサイズ（一部指定）" }
+    ],
+    "notes": "一般的な履歴書の写真欄は縦40mm × 横30mm"
+  },
+
+  "digital_spec": {
+    "file_format": ["JPEG", "PNG"],
+    "file_extension": [".jpg", ".jpeg", ".png"],
+    "recommended_width_px": 354,
+    "recommended_height_px": 472,
+    "min_width_px": 295,
+    "min_height_px": 394,
+    "aspect_ratio": "3:4",
+    "color_mode": "RGB",
+    "max_file_size_kb": 5120,
+    "notes": "300dpiで30mm×40mmの場合354×472px。印刷前提のためなるべく高解像度推奨"
+  },
+
+  "image_editor_settings": {
+    "resize_width": 354,
+    "resize_height": 472,
+    "resize_keep_aspect": true,
+    "jpeg_quality": 95,
+    "face_style": "real",
+    "face_padding": 0.4,
+    "face_min_size": 30,
+    "bg_method": "grabcut",
+    "bg_action": "replace",
+    "bg_color": [220, 230, 245],
+    "output_format": "JPEG"
+  },
+
+  "face_positioning": {
+    "head_top_margin_ratio": 0.1,
+    "chin_bottom_ratio": 0.7,
+    "face_center_horizontal": "中央",
+    "notes": "頭頂が写真上端から約10%、あごが上端から約70%の位置が目安"
+  },
+
+  "composition_rules": {
+    "orientation": "正面向き",
+    "expression": "自然な表情（口を閉じる、歯を見せない）",
+    "hat": false,
+    "glasses": "眼鏡可（反射なきこと推奨、フレームが目にかからないこと）",
+    "background": "無地（白・薄いブルー・薄いグレー推奨）",
+    "background_shadow": false,
+    "color_or_bw": "カラー（白黒は非推奨）",
+    "framing": "上半身（胸から上）",
+    "clothing": "スーツ・ブラウスなどビジネスにふさわしい服装",
+    "hair": "顔の輪郭や目が見えること"
+  },
+
+  "recommended_background_colors": [
+    { "name": "ライトブルー", "rgb": [220, 230, 245], "notes": "最も一般的" },
+    { "name": "白", "rgb": [255, 255, 255], "notes": "清潔感" },
+    { "name": "ライトグレー", "rgb": [230, 230, 230], "notes": "落ち着いた印象" }
+  ],
+
+  "ng_examples": [
+    "スナップ写真の切り抜き",
+    "プリクラ・加工アプリ写真",
+    "背景に模様・影がある",
+    "横向き・傾いている",
+    "帽子・サングラス着用",
+    "ピンボケ・画質不良",
+    "古い写真（3ヶ月以上前）"
+  ]
+}

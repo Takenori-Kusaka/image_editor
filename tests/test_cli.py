@@ -121,6 +121,49 @@ def test_background_command_replace(runner, tmp_path, white_bg_png):
         assert b > 200
 
 
+def test_background_command_rembg_remove(runner, tmp_path):
+    """CLI test: background remove with rembg method."""
+    import numpy as np
+    arr = np.full((80, 80, 3), fill_value=[60, 120, 200], dtype=np.uint8)
+    arr[20:60, 20:60] = [200, 160, 130]
+    img = Image.fromarray(arr)
+    input_path = str(tmp_path / "person.png")
+    img.save(input_path)
+
+    output = str(tmp_path / "rembg_out.png")
+    result = runner.invoke(cli, [
+        "background", input_path,
+        "-o", output,
+        "--action", "remove",
+        "--method", "rembg",
+    ])
+    assert result.exit_code == 0, result.output
+    with Image.open(output) as out:
+        assert out.mode == "RGBA"
+
+
+def test_background_command_rembg_replace(runner, tmp_path):
+    """CLI test: background replace with rembg method."""
+    import numpy as np
+    arr = np.full((80, 80, 3), fill_value=[60, 120, 200], dtype=np.uint8)
+    arr[20:60, 20:60] = [200, 160, 130]
+    img = Image.fromarray(arr)
+    input_path = str(tmp_path / "person.png")
+    img.save(input_path)
+
+    output = str(tmp_path / "rembg_replace.png")
+    result = runner.invoke(cli, [
+        "background", input_path,
+        "-o", output,
+        "--action", "replace",
+        "--method", "rembg",
+        "--color", "255,255,255",
+    ])
+    assert result.exit_code == 0, result.output
+    with Image.open(output) as out:
+        assert out.mode == "RGB"
+
+
 def test_crop_command_with_backup(runner, tmp_path, sample_png):
     output = str(tmp_path / "out.png")
     backup_dir = str(tmp_path / "bk")

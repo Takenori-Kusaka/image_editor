@@ -1,0 +1,100 @@
+{
+  "_meta": {
+    "name": "運転免許証用写真",
+    "name_en": "Driver's License Photo (Japan)",
+    "description": "日本の運転免許証の申請・更新用顔写真の規格",
+    "source": "警察庁（National Police Agency）/ 各都道府県公安委員会",
+    "source_url": "https://www.npa.go.jp/policies/application/license_renewal/photo.html",
+    "last_verified": "2026-03-01",
+    "validity_period": "撮影から6ヶ月以内"
+  },
+
+  "print_spec": {
+    "width_mm": 24,
+    "height_mm": 30,
+    "dpi": 300,
+    "notes": "免許証に貼付するサイズ。縁なし（フチなし）で切り取ること"
+  },
+
+  "digital_spec": {
+    "recommended_width_px": 283,
+    "recommended_height_px": 354,
+    "aspect_ratio": "24:30",
+    "file_format": ["JPEG"],
+    "file_extension": [".jpg", ".jpeg"],
+    "color_mode": "RGB",
+    "min_resolution_dpi": 300,
+    "notes": "公式な電子データ提出規格は公開されていないため、300dpi相当のJPEGを推奨。一部自治体ではオンライン更新が試行中"
+  },
+
+  "image_editor_settings": {
+    "resize_width": 283,
+    "resize_height": 354,
+    "resize_keep_aspect": true,
+    "jpeg_quality": 92,
+    "face_style": "real",
+    "face_padding": 0.3,
+    "face_min_size": 30,
+    "bg_method": "grabcut",
+    "bg_action": "replace",
+    "bg_color": [255, 255, 255],
+    "output_format": "JPEG"
+  },
+
+  "face_positioning": {
+    "framing": "上三分身（胸から上）",
+    "face_length_mm": { "target": 18, "tolerance": 2, "notes": "頭頂〜あご目安（写真全体の約60%）" },
+    "top_margin_mm": { "target": 3, "tolerance": 1, "notes": "頭頂から写真上端までの余白" },
+    "face_length_ratio": 0.60,
+    "top_margin_ratio": 0.10,
+    "notes": "顔が写真の中央に位置し、頭頂から上端に適切な余白を設ける"
+  },
+
+  "composition_rules": {
+    "orientation": "正面向き",
+    "expression": "自然な表情（歯を見せない）",
+    "hat": false,
+    "glasses": "通常使用する眼鏡は着用可。サングラス・カラーレンズ不可。フレームが目にかからないこと",
+    "background": "無地（単色）",
+    "background_colors_accepted": ["白", "薄い水色", "薄いグレー"],
+    "background_shadow": false,
+    "color_or_bw": "カラー",
+    "framing": "上三分身（おおむね胸から上、頭頂が写真内に収まること）",
+    "hair": "顔の輪郭が確認でき、目元が見える状態",
+    "accessories": "顔を隠す装飾品不可"
+  },
+
+  "ng_examples": [
+    "写真が不鮮明・粒子が粗い",
+    "顔が正面を向いていない・傾いている",
+    "背景に柄・影・他人・物が写っている",
+    "帽子・サングラス・マスク着用",
+    "前髪で目元が隠れている",
+    "笑いすぎ等で平常時と著しく印象が異なる",
+    "シールプリント等で加工された写真",
+    "眼鏡レンズに光が反射している",
+    "顔色が不自然に変色（照明不良・フィルター加工）",
+    "スナップ写真から切り抜いたもの",
+    "椅子の背もたれ等が写り込んでいる"
+  },
+
+  "practical_tips": {
+    "where_to_use": [
+      "新規取得時（試験場・教習所卒業時）",
+      "更新時（一般/優良/違反者講習）",
+      "再交付時（紛失・汚損）",
+      "住所変更等の記載事項変更時（一部の公安委員会で必要）"
+    ],
+    "持ち込み vs 当日撮影": "更新センターでは当日撮影可。持ち込み写真は一部の免許センター・警察署で受付（自治体による）",
+    "tips": [
+      "証明写真機（スピード写真）でも可だが、サイズに注意",
+      "更新ハガキに写真規格の記載があるので確認推奨",
+      "ICチップ搭載免許では高品質写真が望ましい"
+    ]
+  },
+
+  "exceptions": {
+    "religious_medical": "宗教上・医療上の理由で頭部を覆う場合、事前に公安委員会へ相談",
+    "glasses_rule": "日常的に眼鏡を使用する場合は眼鏡着用での撮影が望ましい"
+  }
+}

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from click.core import ParameterSource
 
 from image_editor import __version__
 from image_editor.operations import (
@@ -239,15 +240,29 @@ def convert(ctx, input, output, target_format, quality, bg_color, backup, backup
 )
 @click.option(
     "--method",
-    type=click.Choice(["flood", "grabcut"]),
+    type=click.Choice(["flood", "grabcut", "rembg"]),
     default="flood",
     show_default=True,
     help=(
         "Segmentation method. 'flood' is fast and works on solid-colour backgrounds. "
-        "'grabcut' uses edge-aware segmentation and works on complex backgrounds "
-        "(real photos, 3-D renders, 2-D/anime). "
+        "'grabcut' uses edge-aware segmentation and works on complex backgrounds. "
+        "'rembg' uses deep-learning (U\u00b2-Net) for highest accuracy person/object "
+        "segmentation including hair edges and fine detail. "
         "Can also be set in a settings file via 'bg_method'."
     ),
+)
+@click.option(
+    "--rembg-model",
+    type=click.Choice(["u2net", "u2net_human_seg", "isnet-general-use"]),
+    default="u2net",
+    show_default=True,
+    help="Model for rembg method. 'u2net_human_seg' is optimised for portraits.",
+)
+@click.option(
+    "--alpha-matting",
+    is_flag=True,
+    default=False,
+    help="Enable alpha matting for fine edge detail (rembg method only). Slower but better hair/fur edges.",
 )
 @click.option(
     "--grabcut-iterations",
@@ -259,7 +274,8 @@ def convert(ctx, input, output, target_format, quality, bg_color, backup, backup
 @click.option("--backup", is_flag=True, help="Backup original file before processing.")
 @click.option("--backup-dir", default=None, help="Directory to store backups.")
 @pass_ctx
-def background(ctx, input, output, action, threshold, color, method, grabcut_iterations, backup, backup_dir):
+@click.pass_context
+def background(click_ctx, ctx, input, output, action, threshold, color, method, rembg_model, alpha_matting, grabcut_iterations, backup, backup_dir):
     """Process the background of an image.
 
     INPUT is the path to the input image.
@@ -267,12 +283,15 @@ def background(ctx, input, output, action, threshold, color, method, grabcut_ite
     Use --action remove to make the background transparent (saves as PNG/WEBP).
     Use --action replace to replace the background with a solid color.
 
-    Supports real photos, 3-D renders, and 2-D/anime illustrations via
-    --method grabcut.
+    Supports three methods:
+    - flood: Fast, for solid-colour backgrounds
+    - grabcut: Edge-aware OpenCV segmentation
+    - rembg: Deep-learning (U\u00b2-Net) for highest quality person/object segmentation
     """
     s = ctx.settings
-    effective_method = method if method != "flood" else s.get("bg_method", "flood")
-    effective_threshold = threshold if threshold != 30 else s.get("bg_threshold", 30)
+    src = click_ctx.get_parameter_source
+    effective_method = method if src("method") != ParameterSource.DEFAULT else s.get("bg_method", "flood")
+    effective_threshold = threshold if src("threshold") != ParameterSource.DEFAULT else s.get("bg_threshold", 30)
     bg_color = _parse_color(color)
     if backup or s.get("backup_enabled"):
         bp = create_backup(input, backup_dir or s.get("backup_dir"))
@@ -284,6 +303,8 @@ def background(ctx, input, output, action, threshold, color, method, grabcut_ite
         color=bg_color,
         method=effective_method,
         grabcut_iterations=grabcut_iterations,
+        rembg_model=rembg_model,
+        alpha_matting=alpha_matting,
     )
     click.echo(f"Processed image saved to: {output}")
 
@@ -330,7 +351,8 @@ def background(ctx, input, output, action, threshold, color, method, grabcut_ite
 @click.option("--backup", is_flag=True, help="Backup original file before processing.")
 @click.option("--backup-dir", default=None, help="Directory to store backups.")
 @pass_ctx
-def face(ctx, input, output, style, padding, min_size, face_index, backup, backup_dir):
+@click.pass_context
+def face(click_ctx, ctx, input, output, style, padding, min_size, face_index, backup, backup_dir):
     """Detect and crop a face from an image.
 
     INPUT is the path to the input image.
@@ -339,8 +361,9 @@ def face(ctx, input, output, style, padding, min_size, face_index, backup, backu
     Supports real photographs, 3-D renders, and 2-D/anime illustrations.
     """
     s = ctx.settings
-    effective_padding = padding if padding != 0.2 else s.get("face_padding", 0.2)
-    effective_min_size = min_size if min_size != 30 else s.get("face_min_size", 30)
+    src = click_ctx.get_parameter_source
+    effective_padding = padding if src("padding") != ParameterSource.DEFAULT else s.get("face_padding", 0.2)
+    effective_min_size = min_size if src("min_size") != ParameterSource.DEFAULT else s.get("face_min_size", 30)
     if backup or s.get("backup_enabled"):
         bp = create_backup(input, backup_dir or s.get("backup_dir"))
         click.echo(f"Backup created: {bp}")

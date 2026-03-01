@@ -1,12 +1,16 @@
 """Background operations: removal, transparency, and replacement.
 
-Two removal methods are provided:
+Three removal methods are provided:
 
 * ``"flood"`` – Fast flood-fill from image corners.  Works well for images
   with a uniform solid-colour background (any art style).
 * ``"grabcut"`` – OpenCV GrabCut graph-cut segmentation using an auto-detected
   foreground hint.  Handles complex backgrounds and works across real photos,
   3-D renders, and 2-D/anime illustrations.
+* ``"rembg"`` – Deep-learning-based segmentation using U²-Net via the *rembg*
+  library.  Provides the highest accuracy for person/object segmentation,
+  including fine details like hair edges and semi-transparent regions.
+  Requires ``pip install rembg[cpu]`` (or ``rembg[gpu]`` for CUDA).
 """
 
 from __future__ import annotations
@@ -221,6 +225,108 @@ def replace_background_grabcut(
     return bg
 
 
+# ---------------------------------------------------------------------------
+# rembg (U²-Net deep-learning) method
+# ---------------------------------------------------------------------------
+
+
+def _check_rembg_available() -> None:
+    """Raise ImportError with a helpful message if rembg is not installed."""
+    try:
+        import rembg  # noqa: F401
+    except ImportError:
+        raise ImportError(
+            "The 'rembg' package is required for method='rembg'. "
+            "Install it with: pip install rembg[cpu]  (or rembg[gpu] for CUDA)"
+        )
+
+
+def remove_background_rembg(
+    image: Image.Image,
+    model_name: str = "u2net",
+    alpha_matting: bool = False,
+    alpha_matting_foreground_threshold: int = 240,
+    alpha_matting_background_threshold: int = 10,
+    alpha_matting_erode_size: int = 10,
+) -> Image.Image:
+    """Remove background using deep-learning segmentation (U²-Net via rembg).
+
+    This produces significantly higher quality results than GrabCut or flood-fill,
+    especially for:
+    - Hair edges and fine detail
+    - Semi-transparent regions
+    - Complex/cluttered backgrounds
+    - Person segmentation (clothing, accessories)
+
+    Args:
+        image: Input PIL Image.
+        model_name: rembg model to use.  ``"u2net"`` (default, general purpose),
+                    ``"u2net_human_seg"`` (optimised for human portraits),
+                    ``"isnet-general-use"`` (ISNet, high quality).
+        alpha_matting: If True, apply alpha matting for finer edge detail
+                       (slower but better hair/fur edges).
+        alpha_matting_foreground_threshold: Foreground confidence threshold (0-255).
+        alpha_matting_background_threshold: Background confidence threshold (0-255).
+        alpha_matting_erode_size: Erosion kernel size for matting mask refinement.
+
+    Returns:
+        PIL Image in RGBA mode with the detected background made transparent.
+    """
+    _check_rembg_available()
+    from rembg import remove, new_session
+
+    session = new_session(model_name)
+
+    result = remove(
+        image,
+        session=session,
+        alpha_matting=alpha_matting,
+        alpha_matting_foreground_threshold=alpha_matting_foreground_threshold,
+        alpha_matting_background_threshold=alpha_matting_background_threshold,
+        alpha_matting_erode_size=alpha_matting_erode_size,
+    )
+
+    if result.mode != "RGBA":
+        result = result.convert("RGBA")
+    return result
+
+
+def replace_background_rembg(
+    image: Image.Image,
+    new_background: tuple = (255, 255, 255),
+    model_name: str = "u2net",
+    alpha_matting: bool = False,
+    alpha_matting_foreground_threshold: int = 240,
+    alpha_matting_background_threshold: int = 10,
+    alpha_matting_erode_size: int = 10,
+) -> Image.Image:
+    """Replace background using deep-learning segmentation (U²-Net via rembg).
+
+    Args:
+        image: Input PIL Image.
+        new_background: Replacement background colour (RGB tuple).
+        model_name: rembg model name.
+        alpha_matting: Enable alpha matting for fine edge detail.
+        alpha_matting_foreground_threshold: Foreground confidence (0-255).
+        alpha_matting_background_threshold: Background confidence (0-255).
+        alpha_matting_erode_size: Erosion size for matting refinement.
+
+    Returns:
+        PIL Image (RGB mode) with the background replaced.
+    """
+    rgba = remove_background_rembg(
+        image,
+        model_name=model_name,
+        alpha_matting=alpha_matting,
+        alpha_matting_foreground_threshold=alpha_matting_foreground_threshold,
+        alpha_matting_background_threshold=alpha_matting_background_threshold,
+        alpha_matting_erode_size=alpha_matting_erode_size,
+    )
+    bg = Image.new("RGB", image.size, new_background)
+    bg.paste(rgba, mask=rgba.split()[3])
+    return bg
+
+
 def background_file(
     input_path: str,
     output_path: str,
@@ -229,6 +335,8 @@ def background_file(
     color: tuple = (255, 255, 255),
     method: str = "flood",
     grabcut_iterations: int = 5,
+    rembg_model: str = "u2net",
+    alpha_matting: bool = False,
 ) -> str:
     """Process background of an image file.
 
@@ -239,16 +347,34 @@ def background_file(
                 (replace with *color*).
         threshold: Colour-distance threshold for the ``"flood"`` method.
         color: Replacement background colour for the ``'replace'`` action.
-        method: Segmentation method: ``"flood"`` (default, fast) or
-                ``"grabcut"`` (edge-aware, works on complex backgrounds).
+        method: Segmentation method: ``"flood"`` (default, fast),
+                ``"grabcut"`` (edge-aware), or ``"rembg"`` (deep-learning,
+                highest accuracy for person/object segmentation).
         grabcut_iterations: Number of GrabCut iterations (only used when
                             *method* is ``"grabcut"``).
+        rembg_model: rembg model name (only used when *method* is ``"rembg"``).
+                     Options: ``"u2net"``, ``"u2net_human_seg"``,
+                     ``"isnet-general-use"``.
+        alpha_matting: Enable alpha matting for fine edge detail (only used
+                       when *method* is ``"rembg"``).
 
     Returns:
         Path to the output file.
     """
     with Image.open(input_path) as img:
-        if method == "grabcut":
+        if method == "rembg":
+            if action == "remove":
+                result = remove_background_rembg(
+                    img, model_name=rembg_model, alpha_matting=alpha_matting,
+                )
+            elif action == "replace":
+                result = replace_background_rembg(
+                    img, new_background=color,
+                    model_name=rembg_model, alpha_matting=alpha_matting,
+                )
+            else:
+                raise ValueError(f"Unknown action '{action}'. Use 'remove' or 'replace'.")
+        elif method == "grabcut":
             if action == "remove":
                 result = remove_background_grabcut(img, iterations=grabcut_iterations)
             elif action == "replace":

@@ -132,3 +132,58 @@ def test_background_file_grabcut_invalid_action(tmp_path, tmp_image_file):
     with pytest.raises(ValueError, match="Unknown action"):
         background_file(tmp_image_file, output, action="invalid", method="grabcut")
 
+
+# ---------------------------------------------------------------------------
+# rembg (U²-Net deep-learning) method
+# ---------------------------------------------------------------------------
+
+
+def test_rembg_remove_returns_rgba(person_silhouette_image):
+    from image_editor.operations.background import remove_background_rembg
+    result = remove_background_rembg(person_silhouette_image, model_name="u2net")
+    assert result.mode == "RGBA"
+    assert result.size == person_silhouette_image.size
+
+
+def test_rembg_replace_returns_rgb(person_silhouette_image):
+    from image_editor.operations.background import replace_background_rembg
+    result = replace_background_rembg(
+        person_silhouette_image, new_background=(255, 255, 255), model_name="u2net",
+    )
+    assert result.mode == "RGB"
+    assert result.size == person_silhouette_image.size
+
+
+def test_rembg_replaces_background_color(person_silhouette_image):
+    """Verify that the blue background is actually replaced with white."""
+    from image_editor.operations.background import replace_background_rembg
+    result = replace_background_rembg(
+        person_silhouette_image, new_background=(255, 255, 255), model_name="u2net",
+    )
+    # The corner pixel (pure background) should be close to white now
+    r, g, b = result.getpixel((0, 0))
+    assert r > 200 and g > 200 and b > 200, f"Corner pixel should be white, got ({r},{g},{b})"
+
+
+def test_background_file_rembg_remove(tmp_path, person_silhouette_file):
+    output = str(tmp_path / "rembg_out.png")
+    background_file(person_silhouette_file, output, action="remove", method="rembg")
+    with Image.open(output) as img:
+        assert img.mode == "RGBA"
+
+
+def test_background_file_rembg_replace(tmp_path, person_silhouette_file):
+    output = str(tmp_path / "rembg_replace.png")
+    background_file(
+        person_silhouette_file, output,
+        action="replace", method="rembg", color=(0, 255, 0),
+    )
+    with Image.open(output) as img:
+        assert img.mode == "RGB"
+
+
+def test_background_file_rembg_invalid_action(tmp_path, person_silhouette_file):
+    output = str(tmp_path / "out.png")
+    with pytest.raises(ValueError, match="Unknown action"):
+        background_file(person_silhouette_file, output, action="invalid", method="rembg")
+

@@ -9,11 +9,30 @@ description = "A versatile image and photo editing GUI/CLI tool"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
+authors = [
+    { name = "Takenori Kusaka" },
+]
+keywords = ["image", "editor", "crop", "resize", "face-detection", "background-removal", "cli", "gui"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Graphics :: Editors",
+]
 dependencies = [
     "Pillow>=10.0.0",
     "click>=8.0.0",
     "opencv-python-headless>=4.8.0",
     "numpy>=1.24.0",
+    "rembg[cpu]>=2.0.50",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +40,12 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Takenori-Kusaka/image_editor"
+Repository = "https://github.com/Takenori-Kusaka/image_editor"
+Issues = "https://github.com/Takenori-Kusaka/image_editor/issues"
+Changelog = "https://github.com/Takenori-Kusaka/image_editor/blob/main/CHANGELOG.md"
 
 [project.scripts]
 image-editor = "image_editor.cli:main"

@@ -26,6 +26,8 @@ from image_editor.operations.background import (
     background_file,
     remove_background_grabcut,
     replace_background_grabcut,
+    remove_background_rembg,
+    replace_background_rembg,
 )
 from image_editor.operations.face import (
     detect_faces,
@@ -53,6 +55,8 @@ __all__ = [
     "background_file",
     "remove_background_grabcut",
     "replace_background_grabcut",
+    "remove_background_rembg",
+    "replace_background_rembg",
     "detect_faces",
     "crop_face",
     "crop_face_file",

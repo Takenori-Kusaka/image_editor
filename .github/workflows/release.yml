@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: "Build ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: image-editor-linux
+            cli_binary: image-editor
+            gui_binary: image-editor-gui
+          - os: macos-latest
+            artifact_name: image-editor-macos
+            cli_binary: image-editor
+            gui_binary: image-editor-gui
+          - os: windows-latest
+            artifact_name: image-editor-windows
+            cli_binary: image-editor.exe
+            gui_binary: image-editor-gui.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build CLI binary
+        run: |
+          pyinstaller --onefile --name "${{ matrix.cli_binary }}" --hidden-import=image_editor --hidden-import=image_editor.operations --hidden-import=image_editor.operations.crop --hidden-import=image_editor.operations.resize --hidden-import=image_editor.operations.convert --hidden-import=image_editor.operations.background --hidden-import=image_editor.operations.face --hidden-import=image_editor.settings --hidden-import=image_editor.utils --hidden-import=image_editor.utils.backup --hidden-import=image_editor.utils.batch --collect-data cv2 image_editor/cli.py
+
+      - name: Build GUI binary
+        run: |
+          pyinstaller --onefile --name "${{ matrix.gui_binary }}" --hidden-import=image_editor --hidden-import=image_editor.operations --hidden-import=image_editor.operations.crop --hidden-import=image_editor.operations.resize --hidden-import=image_editor.operations.convert --hidden-import=image_editor.operations.background --hidden-import=image_editor.operations.face --hidden-import=image_editor.settings --hidden-import=image_editor.utils --hidden-import=image_editor.utils.backup --hidden-import=image_editor.utils.batch --collect-data cv2 image_editor/gui.py
+
+      - name: Create archive (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p staging
+          cp dist/${{ matrix.cli_binary }} staging/
+          cp dist/${{ matrix.gui_binary }} staging/
+          cp README.md LICENSE staging/
+          cd staging
+          tar czf ../${{ matrix.artifact_name }}.tar.gz *
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path staging -Force
+          Copy-Item "dist/${{ matrix.cli_binary }}" staging/
+          Copy-Item "dist/${{ matrix.gui_binary }}" staging/
+          Copy-Item README.md, LICENSE staging/
+          Compress-Archive -Path staging/* -DestinationPath "${{ matrix.artifact_name }}.zip"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}.tar.gz
+            ${{ matrix.artifact_name }}.zip
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip

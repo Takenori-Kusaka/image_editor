@@ -200,10 +200,10 @@ class ImageEditorGUI:
         OptionMenu(frame, self._bg_action, "remove", "replace").grid(row=0, column=1, sticky=W, padx=4)
 
         Label(frame, text="Method:").grid(row=1, column=0, sticky=W, pady=2)
-        OptionMenu(frame, self._bg_method, "flood", "grabcut").grid(row=1, column=1, sticky=W, padx=4)
+        OptionMenu(frame, self._bg_method, "flood", "grabcut", "rembg").grid(row=1, column=1, sticky=W, padx=4)
         Label(
             frame,
-            text="flood = solid bg, grabcut = complex bg / all styles",
+            text="flood = solid bg, grabcut = complex bg, rembg = AI (best quality)",
             fg="gray",
         ).grid(row=2, column=0, columnspan=2, sticky=W)
 

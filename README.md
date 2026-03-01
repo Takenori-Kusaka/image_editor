@@ -158,7 +158,8 @@ Tests are organised into three levels:
 image_editor/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml              # GitHub Actions CI (Python 3.9–3.12)
+│       ├── ci.yml              # GitHub Actions CI (Python 3.9–3.12, Linux/macOS/Windows)
+│       └── release.yml         # Build & publish binaries on version tag push
 ├── image_editor/
 │   ├── __init__.py
 │   ├── cli.py                  # CLI entry point (Click + --settings-file)

@@ -125,6 +125,44 @@ def test_grabcut_bg_removal_produces_rgba(tmp_path, rgb_100x100):
 
 
 # ---------------------------------------------------------------------------
+# rembg background removal
+# ---------------------------------------------------------------------------
+
+
+def test_rembg_bg_removal_produces_rgba(tmp_path):
+    """rembg should produce an RGBA image with transparent background."""
+    import numpy as np
+    arr = np.full((100, 100, 3), fill_value=[60, 120, 200], dtype=np.uint8)
+    arr[25:75, 30:70] = [200, 160, 130]
+    img = Image.fromarray(arr)
+    input_path = str(tmp_path / "person.png")
+    img.save(input_path)
+
+    out = str(tmp_path / "rembg.png")
+    background_file(input_path, out, action="remove", method="rembg")
+    with Image.open(out) as result:
+        assert result.mode == "RGBA"
+
+
+def test_rembg_bg_replace_pipeline(tmp_path):
+    """rembg replace → resize pipeline produces correct dimensions."""
+    import numpy as np
+    arr = np.full((200, 150, 3), fill_value=[80, 160, 80], dtype=np.uint8)
+    arr[40:160, 30:120] = [200, 160, 130]
+    img = Image.fromarray(arr)
+    input_path = str(tmp_path / "person.png")
+    img.save(input_path)
+
+    bg_out = str(tmp_path / "white_bg.png")
+    background_file(input_path, bg_out, action="replace", method="rembg", color=(255, 255, 255))
+
+    resized_out = str(tmp_path / "final.jpg")
+    resize_file(bg_out, resized_out, 100, 100)
+    with Image.open(resized_out) as result:
+        assert result.size == (100, 100)
+
+
+# ---------------------------------------------------------------------------
 # Settings-driven pipeline
 # ---------------------------------------------------------------------------
 
